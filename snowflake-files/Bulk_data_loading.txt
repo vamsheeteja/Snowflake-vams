@@ -1,0 +1,121 @@
+s3 -> EC2
+s3 -> Snowflake
+
+LOADING DATA INTO SNOWFLAKE:
+
+create or replace TABLE EMP (
+	EMPID INTEGER primary key,
+	EMPNAME VARCHAR(100),
+	LOCATION VARCHAR(100)
+);
+ 
+ 
+create or replace TABLE DEPT (
+	DEPTID NUMBER(38,0),
+	BRANCH VARCHAR(100)
+);
+ 
+
+s3://pushpitha/Snowflake/Raw_Data/
+
+/*WITH SECRET KEYS*/
+COPY INTO EMP
+FROM s3://pushpitha/Snowflake/Raw_Data/Emp/
+CREDENTIALS=(AWS_KEY_ID = 'AKIA5MH3MBLQCCJCE7AI' AWS_SECRET_KEY = '1EM2rCT70BmMZt2NRBO4VQXyfbRMUJ9hl3eftP1b')
+FILE_FORMAT = (TYPE=CSV)
+
+
+
+/*WITH STORAGE INTEGRATION*/
+create or replace storage integration AWS_S3_SOURCE_DATA
+type = external_stage
+storage_provider = s3
+storage_aws_role_arn =  'arn:aws:iam::919650175712:role/Snowflake_Load'
+enabled = true
+storage_allowed_locations = ('s3://pushpitha');
+  
+  
+  
+describe integration AWS_S3_SOURCE_DATA
+select * from emp
+  
+COPY INTO EMP
+FROM s3://pushpitha/Snowflake/Raw_Data/Emp/
+storage_integration = AWS_S3_SOURCE_DATA
+FILE_FORMAT = (TYPE=CSV)
+force=true
+
+select *
+from table(information_schema.copy_history(table_name=>'MYTABLE', start_time=> dateadd(hours, -1, current_timestamp())));
+
+
+
+
+/*CREATE STAGE WITH AWS KEYS*/
+create or replace stage stg_S3_Source_data
+url='s3://pushpitha/Snowflake/Raw_Data'
+CREDENTIALS=(AWS_KEY_ID = 'AKIA5MH3MBLQNE6BWY4P' AWS_SECRET_KEY = '2WDxRbpaon4IX5sbJzLAnKtiGlCu5lN4fOpeknCk')
+FILE_FORMAT = (TYPE=CSV)
+
+list @stg_S3_Source_data
+
+COPY INTO EMP
+FROM @stg_S3_Source_data/Emp/
+FORCE=TRUE
+  
+
+COPY INTO Dept
+FROM @stg_S3_Source_data/dept/
+FORCE=TRUE
+  
+
+/*CREATE STAGE WITH AWS STORAGE INTEGRATION*/  
+create or replace stage stg_S3_Source_data_new
+url='s3://pushpitha/Snowflake/Raw_Data'
+storage_integration = AWS_S3_SOURCE_DATA
+FILE_FORMAT = (TYPE=CSV)
+
+
+
+COPY INTO EMP
+FROM @stg_S3_Source_data_new/Emp/
+FORCE=TRUE
+
+
+COPY INTO DEPT
+FROM @stg_S3_Source_data_new/Dept/
+FORCE=TRUE;
+
+
+********************************************************************
+Best Practice
+****************************************
+
+
+1.storage integration ==> 2.stage ==> 3.copy_history
+
+
+1.
+create storage integration AWS_S3_SOURCE_DATA
+type = external_stage
+  storage_provider = s3
+  storage_aws_role_arn =  'arn:aws:iam::086865219265:role/deepak_role'
+  enabled = true
+  storage_allowed_locations = ('s3://snowflake202002');
+2. 
+
+create or replace stage stg_S3_Source_data_new
+url='s3://pushpitha/Snowflake/Raw_Data'
+storage_integration = AWS_S3_SOURCE_DATA
+FILE_FORMAT = (TYPE=CSV)
+
+
+3.
+COPY INTO EMP
+FROM @stg_S3_Source_data/emp 
+FORCE=TRUE;
+
+COPY INTO DEPT
+FROM @stg_S3_Source_data/department
+FORCE=TRUE;
+  

@@ -1,0 +1,147 @@
+-- -- // Stored Procedures
+
+CREATE OR REPLACE PROCEDURE create_stmt()
+RETURNS FLOAT
+LANGUAGE JAVASCRIPT
+EXECUTE AS OWNER  -- if running with another user who has access then EXECUTE AS CALLER 
+AS 
+$$
+var my_sql_command1 = "insert into emp values(300, 'Raju', 'abc')";
+var statement1 = snowflake.createStatement({sqlText: my_sql_command1});
+statement1.execute();
+$$
+
+call create_stmt();
+
+
+-- // Using variable in createstatement
+
+CREATE OR REPLACE PROCEDURE bind_vars()
+RETURNS FLOAT
+LANGUAGE JAVASCRIPT
+EXECUTE AS OWNER  -- if running with another user who has access then EXECUTE AS CALLER 
+AS 
+$$
+var empid=1000;
+var empname='Rama'; // declaration
+var location='def';
+var my_sql_command1='insert into emp values(:1, :2, :3)';
+var statement1 = snowflake.createStatement({sqlText: my_sql_command1, binds: [empid, empname, location]});
+statement1.execute();
+$$
+
+call bind_vars();
+
+-- // input parameters with binding
+
+CREATE OR REPLACE PROCEDURE bind_vars_input(p_empid string, p_empname string, p_location string)
+RETURNS FLOAT
+LANGUAGE JAVASCRIPT
+EXECUTE AS OWNER  -- if running with another user who has access then EXECUTE AS CALLER 
+AS 
+$$
+var my_sql_command1='insert into emp values(:1, :2, :3)';
+var statement1 = snowflake.createStatement({sqlText: my_sql_command1, binds: [P_EMPID, P_EMPNAME, P_LOCATION]});
+statement1.execute();
+$$
+
+call bind_vars_input(1001, 'Lakhan', 'def');
+
+-- // some transformation can also be performed
+ 
+create or replace procedure read_result_set()
+returns float not null
+language javascript
+as 
+$$
+    var my_sql_command1 = "select * from emp";
+    var statement1 = snowflake.createStatement({sqlText: my_sql_command1});
+    var result_set1 = statement1.execute();
+    // Loop through the results, processing one row at a time...
+    while(result_set1.next()) {
+        var column1 = result_set1.getColumnValue(1);
+        var new_column = column1 * 10;
+        var my_sql_command2 = "update emp set empid=:1 where empid=:2";
+        var statement2 = snowflake.createStatement({sqlText: my_sql_command2, binds: [new_column, column1]});
+        statement2.execute();
+    }
+    return 0.0;
+$$
+
+call read_result_set();
+
+select * from emp;
+
+-- // overloading stored procedured.
+
+-- -- // overloading stored procedure : use same name with different number of arguments.
+
+create or replace procedure stproc1(FLOAT_PARAM1 FLOAT)
+returns string
+language javascript
+as
+$$
+return FLOAT_PARAM1;
+$$
+;
+
+create or replace procedure stproc1(FLOAT_PARAM1 FLOAT, FLOAT_PARAM2 FLOAT)
+returns string
+language javascript
+as
+$$
+return FLOAT_PARAM1 * FLOAT_PARAM2;
+$$
+;
+
+call stproc1(3.14 :: FLOAT); -- TYPE CAST HERE ALSO ..
+call stproc1(3.14, 3.14);
+select * from emp;
+
+-- -- // AUTOMATIC TYPE CONVERSION
+
+
+
+create or replace procedure add_pi(PARAM1 FLOAT)
+returns FLOAT
+language javascript
+as
+$$
+return PARAM1 + 3.14;
+$$
+;
+
+call add_pi(3.14 :: FLOAT); 
+call add_pi('2');
+
+-- -- // OVERLOADING AND AUTO TYPE CONVERSION
+
+CREATE OR REPLACE PROCEDURE add_pi(PARAM_1 VARCHAR)
+RETURNS FLOAT
+LANGUAGE JAVASCRIPT
+AS
+$$
+return PARAM_1 + '3.14';
+$$
+
+call add_pi('2');
+
+=========================================================================
+
+-- -- some of snowflake inbuilt functions
+
+-- // for every query we'll have one query id 
+
+select last_query_id(); 
+
+select * from table(RESULT_SCAN(LAST_QUERY_ID())); -- result of last query
+
+call add_pi(select 1+1);
+
+============================================================================
+
+so this stored procedure are useful to run a similar code reusability
+
+1. after loading the data to the staging table we can do the transformations using the stored procedures.
+
+2. like the merge statement used in task statement can be written in the stored procedure and then call the stored procedure from there.

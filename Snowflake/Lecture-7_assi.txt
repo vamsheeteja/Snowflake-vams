@@ -1,0 +1,181 @@
+-- // Lecture 7 Assingment ----
+
+-- source table
+create or replace table emp1(
+    empid integer,
+    empname varchar(100),
+    location varchar(100)
+);
+
+insert into emp1 values(101,'gopi', 'abc');
+insert into emp1 values(102, 'madan', 'abc');
+insert into emp1 values(103, 'vinod', 'abc');
+insert into emp1 values(104, 'manik basha', 'abc');
+
+-- target table
+create or replace table emp_hist1(
+    empid integer,
+    empname varchar(100),
+    location varchar(100),
+    start_date date,
+    end_date date
+    
+);
+
+insert into emp_hist1 values(101, 'gopi', 'abc', getdate(), NULL);
+insert into emp_hist1 values(102, 'madan', 'abc', getdate(), NULL);
+insert into emp_hist1 values(103, 'vinod', 'abc', getdate(), NULL);
+insert into emp_hist1 values(104, 'manik basha', 'abc', getdate(), NULL);
+
+select * from emp1;
+select * from emp_hist1;
+
+-- creating stream for the emp1 (SOURCE TABLE) 
+
+-- create or replace stream s_emp1 on table emp1 append_only=false -- all dml operations are captured.
+
+-- show streams;
+
+-- new updates to the source
+
+insert into emp1 values(105, 'messi', 'arg');
+insert into emp1 values(107, 'chirstiano', 'por');
+update emp1
+set location='Ind'
+where empid=104;
+delete from emp1 where empid=102;
+delete from emp1 where empid=103;
+insert into emp1 values(108, 'msd', 'Ind');
+
+
+select * from emp1;
+select * from emp_hist1;
+select * from s_emp1;
+
+-- end_date = null -> all active records
+-- end_date = current date -> deleted records
+
+-- begin;
+-- insert into emp_hist1( empid, empname, location, start_data, end_data)
+-- (select empid, empname, location from s_emp1 where METADATA$ACTION='INSERT' and METADATA$ISUPDATE='FALSE' and select getdate(), null)
+
+-- update emp_hist1 t1
+-- set t1.empname=t2.empname, t1.location=t2.location
+-- from (select empid, empname, location from s_emp where METADATA$ACTION='INSERT' and METADATA$ISUPDATE='TRUE') t2
+-- where t1.empid=t2.empid;
+
+-- update emp_hist1 t1
+-- set t2.end_data=getdate()
+-- from(select empid from s_emp where METADATA$ACTION='DELETE' and METADATA$ISUPDATE='FALSE') t2
+-- where t1.empid = t2.empid;
+-- commit;
+
+merge into emp_hist1 t1
+using (select * from s_emp1) t2
+on t1.empid=t2.empid
+when matched and t2.METADATA$ACTION='INSERT' and METADATA$ISUPDATE='TRUE' 
+then update set t1.empname=t2.empname, t1.location=t2.location
+when matched and t2.METADATA$ACTION='DELETE'
+then update set t1.end_date=getdate()
+when not matched then 
+insert (empid, empname, location, start_date, end_date) values(t2.empid, t2.empname, t2.location, getdate(), null);
+
+select * from s_emp1;
+select * from emp1;
+select * from emp_hist1;
+
+
+=================CODE=============================
+begin;
+
+update emp_hst tl
+set tl.empname=t2.empname, t1.location=t2.location, tl.end_time=current_timestamp :: timestamp_ntz 
+from (select empid, empname, location from s_emp where METADATA$ACTION="DELETE') t2 
+where tl.empid=t2.empid;
+
+insert into emp_hst select t2.empid, t2.empname, t2.location, current_timestamp, NULL from s_emp t2 where t2.METADATA$ACTION='INSERT';
+commit;
+
+
+
+============================================ update to the above =================================================
+
+
+-- source table
+
+create or replace table emp1(
+    empid integer,
+    empname varchar(100),
+    location varchar(100)
+);
+
+insert into emp1 values(101,'gopi', 'abc');
+insert into emp1 values(102, 'madan', 'abc');
+insert into emp1 values(103, 'vinod', 'abc');
+insert into emp1 values(104, 'manik basha', 'abc');
+
+-- target table
+create or replace table emp_hist1(
+    empid integer,
+    empname varchar(100),
+    location varchar(100),
+    start_date timestamp_ntz,
+    end_date timestamp_ntz
+    
+);
+
+insert into emp_hist1 values(101, 'gopi', 'abc', current_timestamp :: timestamp_ntz, NULL);
+insert into emp_hist1 values(102, 'madan', 'abc', current_timestamp, NULL);
+insert into emp_hist1 values(103, 'vinod', 'abc', current_timestamp, NULL);
+insert into emp_hist1 values(104, 'manik basha', 'abc', current_timestamp, NULL);
+
+select * from emp1;
+select * from emp_hist1;
+
+-- // creating stream for the emp1 (SOURCE TABLE)
+
+create or replace stream s_emp1 on table emp1 append_only=false -- all dml operations are captured.
+
+show streams;
+
+-- // new updates to the source
+
+insert into emp1 values(105, 'messi', 'arg');
+insert into emp1 values(107, 'chirstiano', 'por');
+update emp1
+set location='Ind'
+where empid=104;
+delete from emp1 where empid=102;
+delete from emp1 where empid=103;
+insert into emp1 values(108, 'msd', 'Ind');
+
+
+select * from emp1;
+select * from emp_hist1;
+select * from s_emp1;
+
+-- end_date = null -> all active records
+-- end_date = current date -> deleted records
+
+-- =================CODE FROM MENTOR============================
+BEGIN;
+update emp_hist1 t1
+set t1.empname=t2.empname, t1.location=t2.location, t1.end_date=current_timestamp :: timestamp_ntz 
+from (select empid, empname, location from s_emp1 where METADATA$ACTION='DELETE') t2 
+where t1.empid=t2.empid;
+insert into emp_hist1 select t2.empid, t2.empname, t2.location, current_timestamp, NULL from s_emp1 t2 where t2.METADATA$ACTION='INSERT';
+commit;
+
+-- // this is the correct merge to the given assignment ==============================
+
+merge into emp_hist1 t1
+using (select * from s_emp1) t2
+on t1.empid=t2.empid
+when matched and t2.METADATA$ACTION='DELETE'
+then update set t1.end_date=getdate()
+when not matched then 
+insert (empid, empname, location, start_date, end_date) values(t2.empid, t2.empname, t2.location, getdate(), null);
+
+select * from s_emp1;
+select * from emp1;
+select * from emp_hist1;

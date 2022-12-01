@@ -1,0 +1,26 @@
+two ways to load data into snowfloke from s3
+1. Copy into and 2. External stage.
+
+-- External STAGES
+
+-- CREATE OR REPLACE STAGE STG_S3_SOURCE_DATA 
+-- URL = 's3://nvt/snowflake/Raw_data'
+-- CREDENTIALS=(AWS_KEY_ID = 'AKIAQKK7J6DGFVEEDCA2' AWS_SECRET_KEY = 'UndvVBjGioSg4NhkU5jf1eFxvuFyDTKalrkLRXa+')
+-- FILE_FORMAT = (TYPE=CSV)
+
+-- COPY INTO EMP
+-- FROM @stg_s3_Source_data/Emp/emp.txt
+-- Force = true;
+
+-- create or replace stage stg_s3_Source_data
+-- url = 's3://nvt/snowflake/Raw_data'
+-- storage_integration = AWS_S3_SOURCE_DATA
+-- FILE_FORMAT = (TYPE=CSV)
+
+-- COPYING USING EXTERNAL STAGE
+
+-- COPY INTO EMP 
+-- FROM @stg_s3_Source_data/Emp/emp.txt
+-- Force = true;
+
+select * from emp;

@@ -1,0 +1,35 @@
+-- -- Creating a Storage Integration
+
+CREATE OR REPLACE STORAGE INTEGRATION AWS_S3_SOURCE_DATA
+TYPE = EXTERNAL_STAGE
+STORAGE_PROVIDER = S3
+STORAGE_AWS_ROLE_ARN = 'arn:aws:iam::022211588300:role/s3_snowflake_load1'  -- ARN: amazon resource number, unique number provided to all the resources/object in Aws.
+ENABLED = TRUE 
+STORAGE_ALLOWED_LOCATIONS = ('s3://nvts3bucket');  -- integration is allowed till nvts3bucket only.
+
+describe integration AWS_S3_SOURCE_DATA;
+
+-- -- // creating a Stage
+
+create or replace stage stg_s3_source_data
+url = 's3://nvts3bucket/snowflake/Raw_data'
+storage_integration = aws_s3_source_data
+file_format = (type=csv)
+
+
+-- -- creating Staging table
+
+CREATE OR REPLACE TABLE EMP (
+    EMPID INTEGER PRIMARY KEY,
+    EMPNAME VARCHAR(100),
+    LOCATION VARCHAR(100)
+);
+
+create or replace pipe pipe_testing_emp
+auto_ingest = true
+as 
+copy into emp
+from @stg_s3_source_data/;
+
+show pipes;
+select system$pipe_status('pipe_testing_emp');

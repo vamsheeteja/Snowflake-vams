@@ -1,0 +1,48 @@
+-- -- // -- // Exception handling in the stored procedure
+
+create or replace procedure broken()
+returns varchar not null
+language javascript
+as
+$$
+    var result="";
+    try {
+        snowflake.execute( {sqlText: "inser into emp values(300, 'Gopi', 'Hyd')"} );
+        result = "Succeeded";
+    }
+    catch(err) {
+        result = "Failed: code: " + err.code + "\n State: " + err.state;
+        result += "\n Message: " + err.message;  // message of the error
+        result += "\nStack Trace:\n" + err.stackTraceTxt;  // At which position we have got the error
+    }
+    return result;
+$$
+;
+
+call broken();Lec-8 Exception Handling
+
+-- // User defined exceptions
+
+CREATE OR REPLACE PROCEDURE validate_age(age float)
+RETURNS VARCHAR
+LANGUAGE JAVASCRIPT
+EXECUTE AS CALLER
+AS
+$$
+    try {
+        if(AGE <= 0) {
+            throw "Invalid Age!"
+        } else {
+            return "Age Validated."
+        }
+    } catch(err) {
+        return "Error: " + err;
+    }
+$$;
+
+call validate_age('25');
+
+call validate_age(15);
+
+call validate_age(-1);
+

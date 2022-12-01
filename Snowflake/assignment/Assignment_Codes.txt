@@ -1,0 +1,52 @@
+-- -- // creating a Stream
+create or replace stream s_emp on table emp append_only=false -- all dml operations are captured.
+
+select * from emp;
+select * from s_emp;
+
+-- -- // creating a Target table
+
+create or replace table emp_hist(
+    empid integer,
+    empname varchar(100),
+    location varchar(100),
+    start_date timestamp_ntz,
+    end_date timestamp_ntz
+    
+);
+
+-- -- // creating a Procedure for Merge
+
+create or replace procedure procedure_merge()
+returns float not null
+language javascript
+as
+$$
+    snowflake.createStatement({
+        sqlText:
+            "merge into emp_hist t1 using (select * from s_emp) t2 on t1.empid = t2.empid when matched and t2.METADATA$ACTION='DELETE' then update set t1.end_date=getdate() when not matched then insert (empid, empname, location, start_date, end_date) values(t2.empid, t2.empname, t2.location, getdate(), null);" }).execute();
+    return 1;
+$$
+;
+
+create or replace task task_load_data
+    warehouse = DATA_INGESTION
+    schedule = '1 minute'
+when 
+    system$stream_has_data('s_emp')
+as
+call procedure_merge();
+
+show tasks;
+
+alter task task_load_data resume;
+
+select * from table(information_schema.task_history())
+
+select * from s_emp;
+select * from emp;
+select * from emp_hist;
+
+SELECT * FROM TABLE (INFORMATION_SCHEMA.COPY_HISTORY(TABLE_NAME => 'EMP', START_TIME=>DATEADD(HOURS, -6, CURRENT_TIMESTAMP())))
+select system$pipe_status('pipe_testing_emp');
+

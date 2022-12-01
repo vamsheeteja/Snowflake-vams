@@ -1,0 +1,78 @@
+predefined roles:
+1.ACCOUNTADMIN: super user SYSADMIN+SECURITYADMIN+ extra privileges
+2.SYSADMIN: create databases, schemas, virtual warehouses and all db objects 
+3.SECURITYADMIN: user creation, custom role creations and Grant command 
+4. PUBLIC:
+
+/* USE SYSADMIN ROLE FOR FOLLOWING COMMANDS*/
+create database db1; I
+create schema db1.schl;
+create table dbl.schl.tl (a int);
+create or replace warehouse DATA_INGESTION with
+warehouse_size='LARGE'
+AUTO_SUSPEND = 300
+AUTO_RESUME = TRUE
+INITIALLY_SUSPENDED = TRUE;
+
+/* USE USERADMIN ROLE FOR FOLLOWING COMMANDS*/
+CREATE OR REPLACE ROLE developer
+COMMENT = 'Read and write role';
+create or replace user developerl password='test_olap' default_role = developer; grant role developer to user developer1;
+grant role sysadmin to user developer1;
+aql
+
+/* USE ACCOUNTADMIN ROLE FOR FOLLOWING COMMANDS*/
+
+1) Creating users and roles
+CREATE ROLE olap_rw
+COMMENT 'Read and write role';
+create user olap_new password= 'test_olap' default_role 
+grant role olap_rw to user olap_new;
+
+2) Create Virtual warehouse, database, schema and table.
+create or replace warehouse DATA INGESTION with warehouse_size='LARGE'
+AUTO_SUSPEND = 300
+AUTO_RESUME = TRUE
+INITIALLY_SUSPENDED = TRUE; 
+
+create database TEST
+COMMENT='Test Environment';
+create schema TEST.LANDING
+Comment='Landing schema for source data'; 
+create table TEST. LANDING.tl(a int);
+
+3) Grant Priviliges on Virtual Warehouse
+
+GRANT USAGE ON WAREHOUSE DATA INGESTION TO ROLE olap_rw;  -- to use the warehouse
+GRANT MODIFY ON WAREHOUSE DATA INGESTION TO ROLE olap_rw; --to modify the size of the warehouse
+GRANT OPERATE ON WAREHOUSE DATA INGESTION TO ROLE olap_rw; --to modify the state i.e suspend, on of warehouse
+
+4) Grant Priviliges on Database.
+
+GRANT USAGE ON DATABASE TEST TO ROLE olap_rw; -- to use the databse
+GRANT MODIFY ON DATABASE TEST TO ROLE olap_rw; --to alter the database
+ALTER DATABASE TEST SET COMMENT='test comment;  --alter example
+
+GRANT MONITOR ON DATABASE TEST TO ROLE olap_rw; -- to describe the database
+describe database TEST; -- describe example
+
+GRANT CREATE SCHEMA ON DATABASE TEST TO ROLE olap_rw; create schema TEST.DEMO; create schema example. -- to create schema inside datbase
+
+5) GRANT PRIVILIGES on schema; 
+
+GRANT USAGE ON SCHEMA TEST.LANDING TO ROLE olap_rw; -- to use the database
+GRANT MONITOR ON SCHEMA TEST.LANDING TO ROLE olap_rw; 
+GRANT MODIFY ON SCHEMA TEST.LANDING TO ROLE olap_rw; 
+ALTER SCHEMA TEST. LANDING SET COMMENT='test commen';
+REVOKE MODIFY ON SCHEMA TEST.LANDING FROM ROLE olap_rw;
+
+6) Grant Priviliges on table.
+
+grant select on TEST.LANDING.tl -- to give read access on t1
+to role olap_rw; 
+grant all on TEST.LANDING.tl to role olap_rw; -- to give all access on tl;
+grant all on all.tables in schema LANDING to role olap_rw --grant applies for existing tables
+grant all future tables in schema LANDING to step olap_w; -- grant also applies for new table also.
+
+
+revoke operate on WAREHOUSE DATA INGESTION from ROLE olap_rw

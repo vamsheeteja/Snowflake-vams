@@ -1,0 +1,113 @@
+CREATE OR REPLACE TABLE EMP (
+    EMPID INTEGER PRIMARY KEY,
+    EMPNAME VARCHAR(100),
+    LOCATION VARCHAR(100)
+    
+    
+);
+SELECT * FROM EMP;
+
+
+-- -- // copying data from s3 to snowflake table
+
+-- -- // creating a storage integration to access the s3 source data
+
+-- -- // get the storage_aws_role_arn after creating the role in the iam management keeping the external id as some dummy value 0000... later we will update.
+
+-- CREATE OR REPLACE STORAGE INTEGRATION AWS_S3_SOURCE_DATA
+-- TYPE = EXTERNAL_STAGE
+-- STORAGE_PROVIDER = S3
+-- STORAGE_AWS_ROLE_ARN = 'arn:aws:iam::022211588300:role/s3_snowflake_load1'  -- ARN: amazon resource number, unique number provided to all the resources/object in Aws.
+-- ENABLED = TRUE 
+-- STORAGE_ALLOWED_LOCATIONS = ('s3://nvts3bucket');  -- integration is allowed till nvts3bucket only.
+
+describe integration AWS_S3_SOURCE_DATA;
+
+-- now from the above command copy the STORAGE_AWS_IAM_USER_ARN and STORAGE_AWS_EXTERNAL_ID and update them  in the created role "Trust Relationships" and thats it..
+-- NOTE if create (run again and agiain) storeage integration error will come as External_id will be changed. You have to update that again. 
+
+
+// now this COPY command will work 😅
+-- COPY INTO EMP
+-- FROM S3://nvts3bucket/snowflake/Raw_data/emp.txt
+-- storage_integration=aws_s3_source_data
+-- file_format=(type=csv);
+
+-- -- // creating a stage 
+
+-- create or replace stage stg_s3_source_data
+-- url = 's3://nvts3bucket/snowflake/Raw_data'
+-- storage_integration = aws_s3_source_data
+-- file_format = (type=csv)
+
+-- copying using external stage
+
+copy into emp
+from @stg_s3_source_data/emp.txt
+force = true;
+
+
+-- -- // Now creating a snowpipe 
+
+create or replace pipe pipe_testing_emp
+auto_ingest = true
+as 
+copy into emp
+from @stg_s3_source_data/;
+
+
+-- -- // Note after creating the pipe : Get the pipe notification channel from the "show pipes" command and update it in the s3 bucket "event notification" (though you have to create one.)
+
+show pipes;
+select system$pipe_status('pipe_testing_emp');
+
+show tables;
+
+-- -- // creating a stream
+create or replace stream s_emp on table emp append_only=false -- all dml operations are captured.
+
+select * from emp;
+select * from s_emp;
+
+-- -- // creating a target table
+
+create or replace table emp_hist(
+    empid integer,
+    empname varchar(100),
+    location varchar(100),
+    start_date timestamp_ntz,
+    end_date timestamp_ntz
+    
+);
+
+create or replace task task_load_data
+    warehouse = DATA_INGESTION
+    schedule = '1 minute'
+when 
+    system$stream_has_data('s_emp')
+as 
+merge into emp_hist t1
+using (select * from s_emp) t2
+on t1.empid = t2.empid
+when matched and t2.METADATA$ACTION='DELETE'
+then update set t1.end_date=getdate()
+when not matched then
+insert (empid, empname, location, start_date, end_date) values(t2.empid, t2.empname, t2.location, getdate(), null);
+
+show tasks;
+
+alter task task_load_data resume;
+
+select * from table(information_schema.task_history())
+
+select * from s_emp;
+select * from emp;
+select * from emp_hist;
+
+
+delete from emp;
+delete from emp_hist;
+
+
+show tables;
+

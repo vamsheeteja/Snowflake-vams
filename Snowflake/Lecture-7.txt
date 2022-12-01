@@ -1,0 +1,130 @@
+LEC-7
+
+streams
+
+lets say we have a Source table and a Target table.
+whatever changes which are made to Source table should be made to target table. So in such cases we use Streams.
+
+Stream is like an object which records all the DML operations ie INSERT, DELETE, UPDATE that is any changes made to the source tables then automatically that changes will be reflected in the target table with the help of streams.
+
+what kind of operation are performed that information is also recorded/ holded by "streams" in Metadata columns.
+
+=======SYNTAX==========
+create or replace stream s_emp on table emp APPEND_ONLY=FALSE;  -- APPEND_ONLY = TRUE means only the Inserts will be Captured but not Deletes and Updates. If False all 3 ops Insert, Delete, and Update are captured.
+=======================
+
+why do we use streams?
+Inorder to implement SCD - Slowly Changing Dimensions types in our project.
+
+stream to sync up source and target tables.
+
+lets say 10 records are updated in the source, only the updated records are captured by stream. 
+
+
+create or replace table emp(
+    empid integer,
+    empname varchar(100),
+    location varchar(100)
+);
+
+insert into emp values(101, 'gopi', 'abc');
+insert into emp values(102, 'madan', 'abc');
+insert into emp values(103, 'vinod', 'abc');
+
+create or replace table emp_hist(
+    empid integer,
+    empname varchar(100),
+    location varchar(100)
+);
+
+insert into emp_hist values(101, 'gopi', 'abc');
+insert into emp_hist values(102, 'madan', 'abc');
+insert into emp_hist values(103, 'vinod', 'abc');
+
+select * from emp;
+select * from emp_hist;
+
+create or replace stream s_emp on table emp APPEND_ONLY=FALSE;  -- APPEND_ONLY = FALSE will capture all dml operations.
+
+insert into emp values(104, 'vinay', 'abc');
+
+-- seeing the stream data
+select * from s_emp; -- stream has captired the newly inserted statement.
+delete from emp where empid=103;
+
+select * from emp;
+select * from s_emp;
+
+-- Metadata$update update means 2 operations DELETE for old record and INSERT for new record
+
+update emp
+set location='US'
+where empid=102;
+
+select * from emp;
+select * from s_emp; -- 2 rows are add as it was an update.
+
+
+....................................DO NOT COPY PASTE THE BELOW CODE.............................................
+
+--------------------SEPERATE CODE IS GIVEN BELOW WITHOUT INLINE COMMENTS USE THAT--------------------------------------
+
+
+-- consume the stream data to the Target table.
+
+begin
+
+merge into emp_hist t1
+using (select * from s_emp where not(METADATA$ACTION='DELETE' and METADATA$ISUPDATE='TRUE')) t2  -- we donot want to keep History
+on t1.empid = t2.empid
+when matched and t2.METADATA$ACTION='DELETE' and METADATA$ISUPDATE='FALSE' then delete  -- pure deletion
+when matched and t2.METADATA$ACTION='INSERT' and METADATA$ISUPDATE='TRUE'  -- update insertion
+then update set t1.empname=t2.empname, t1.location=t2.location
+when not matched then                                                      -- PURE insertion
+insert (empid, empname, location) values(t2.empid, t2.empname, t2.location);
+
+commit;
+
+
+-----USE THIS CODE FOR CTRL-C/V--------
+
+-- MERGE INTO 
+merge into emp_hist t1
+using (select * from s_emp where not(METADATA$ACTION='DELETE' and METADATA$ISUPDATE='TRUE')) t2
+on t1.empid = t2.empid
+when matched and t2.METADATA$ACTION='DELETE' and METADATA$ISUPDATE='FALSE' then delete 
+when matched and t2.METADATA$ACTION='INSERT' and METADATA$ISUPDATE='TRUE'
+then update set t1.empname=t2.empname, t1.location=t2.location
+when not matched then    
+insert (empid, empname, location) values(t2.empid, t2.empname, t2.location);
+
+
+
+select * from s_emp;
+select * from emp_hist;
+
+-- // net_results in stream.
+
+-- append_only = true // stream will only capture insert
+
+delete from emp;
+
+insert into emp values(101, 'gopi', 'abc');
+insert into emp_hist values(102, 'madan', 'abc');
+insert into emp_hist values(103, 'vinod', 'abc');
+
+create or replace stream s_emp on table emp APPEND_ONLY=TRUE;  -- only inserts are captured
+
+insert into emp values(104, 'vinay', 'abc');
+
+select * from s_emp;
+
+update emp 
+set location='US';
+where empid=102;
+
+select * from s_emp;
+
+delete from emp where empid=103
+
+select * from s_emp;

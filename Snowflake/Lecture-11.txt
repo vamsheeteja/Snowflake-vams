@@ -1,0 +1,202 @@
+-- -- // Lecture-11
+
+You are writing some complex query, OK?
+Which will take long time to run. OK, and you're under the your underlining data is always getting refreshed. Maybe on daily basis on or on weekly basis or on our monthyly basis, let's say, OK.
+So at that time, you know your queries were very complex and it is taking very much time to run. OK.
+So in such cases what you can do you.
+You can create part of your query as a materialized view and you can precompute the result in that materialized view and you can use that materialize view inside that query so that as this result is already precomputed.
+And exist and also it was really existing in physical form. OK, instead of running the inner query again and again, what it will do it will just go and refer that imaginary table, not imaginary table. Actually is the physical table. I can say metrizable. OK let's see. I mean I will show you clearly.
+
+And instead of, you know, instead of giving a metalizer view here you can simply use this table.
+Some table and you.
+You can also do this, but what is the difference for this one and this one?
+So if you are creating table right, the data will be fixed.
+So next time, let's say.
+Am I mean, let's say your T2 got refreshed, OK, you got few more records in your T2. OK then you have created this table previously. So you will not have those refreshed records again. You should reload this table and you should run this query again. So it is a typical process right? How many times we will reload like that? If this you're not two is getting refreshed I mean not let's say it is not.
+Getting refresh frequently OK.
+Then you can do that basically.
+This for one week or so it's OK, but if it is refreshing on daily basis then or if it is refreshing on hourly basis then what will happen?
+
+Main advantage of this materialized view 
+
+when in complex queries such as like
+
+select * from table1 where col in (select * from t1, t2, t3)... more complex
+
+-- create a materialized view for the subquery and use that 
+create materialized view mv1 as (select * from t2, t3, t4)
+
+select * from table1 where col in (select * from mv1);
+
+Instead of using the materialized view we could use a table but whenever the table gets updated the we have to again and again refresh the table. But using the MV it automatically refreses or dont need to refresh again
+ie create table table2 as select * from t1, t2, t3;
+
+Even though if we donot give a materialized view the snowflake optimizer internally creates it to the materialized view
+
+-- LIMITATIONS 
+no self joins , no union , not intersection, not order by, no group by, no limit; 
+
+we cannot query materialized view inside another materialized view
+
+
+-- -- // Materialized view: one of the Performance tuning techneque.
+
+
+create or replace table emp(empid integer, empname varchar, location varchar);
+
+insert into emp values(300, 'Raju', 'abc');
+
+insert into emp values(100, 'Ramu', 'def');
+
+insert into emp values(300, 'Mamu', 'ghi');
+
+select * from emp;
+
+-- -- // Creating view on top of emp table.
+create materialized view mv_emp as 
+select * from emp;
+
+select * from mv_emp;
+
+-- -- // adding one column to my emp table
+
+alter table emp
+add column deptno integer;
+
+select * from emp;
+
+select * from mv_emp; -- deptno is not still added to materialized view.
+
+alter table emp
+drop column deptno;
+
+select * from mv_emp; -- mv getting invalid : Failure during expansion of view 'MV_EMP': SQL compilation error: Materialized View MV_EMP is invalid.
+
+-- as it is not same as when mv was created.
+
+-- we can also create Temporary tables : that is its data will be specific to this session only and not other sessions. Uses: for computing small computations. 
+
+create or replace TEMPORARY table temp_table as select * from emp; -- once the session is over this tamporary table gets deleted.
+
+show tables;
+
+
+* DOUBT
+
+=====================================================================================================================================================================
+-- -- // Cloning : if we want to take copy of data or backup within same account then we use cloning. =================================================
+
+create or replace table emp_clone
+CLONE emp;
+
+insert into emp values(345, 'balu', 'xyz');
+select * from emp_clone;
+select * from emp;
+
+insert into emp_clone values(123, 'Lalu', 'jkl');
+
+-- -- actually it doesnot make another copy on the disk instead it creates another reference object which hold only the records which we present at the creation time.
+-- hence snow flake is also called a ZERO DATA COPY.
+
+-- WE CAN ALSO CLONE DATABASE ALSO
+
+CREATE OR REPLACE DATABASE DEV 
+CLONE TEST;
+
+USE DATABASE DEV;
+
+USE SCHEMA DEMO;
+
+DROP TABLE T1;
+
+USE DATABASE TEST;
+
+USE SCHEMA DEMO;
+
+show tables;
+
+
+for different account we have to do data sharing.
+
+=============================-- -- // Time Travel ===============================================
+
+create or replace table mytable (
+    col1 number,
+    col2 timestamp_ltz(9)
+)
+data_retention_time_in_days=1  -- I can go back till 1 day. Max is 90 days. Then data will be in Fail Safe Mode (There it will be for 7 Days).
+
+-- in the above example we have 1(we choose) + 7 (in fail safe mode) = 8 days backup
+
+insert into mytable values(1, current_timestamp);
+insert into mytable values(2, current_timestamp);
+
+select current_timestamp;
+
+insert into mytable values(3, current_timestamp);
+
+select * from mytable;
+
+-- -- Querying data before specific time.
+select * from mytable before(timestamp => '2022-11-30 09:26:12.79 -08:00'::timestamp_ltz);
+
+select * from mytable at(timestamp => '2022-11-30 09:27:12.79-08:00'::timestamp_ltz);
+
+
+-- we can clone this time table instead of doing ops on physical table
+
+create or replace table myclonetb2
+clone mytable before(timestamp => '2022-11-30 09:26:12.79 -08:00'::timestamp_ltz);
+
+select * from myclonetb2;
+
+-- -- as DATA_RETENTION_TIME_IN_DATA = 1 even though if i drop my table i can REDROP it 
+
+
+drop table mytable;
+select * from mytable;
+undrop table mytable; -- it will get restored
+select * from mytable;
+
+Trancient Table 
+
+it will be available in different sessions but will not be get 7 days back up ie, it will not get the FAIL SAFE MODE.
+
+==============================================================================================================================
+
+
+-- -- // All 3 table Permanent, Temporary and Transcient all these will have data inside the snowflake
+
+-- -- for EXTERNAL TABLEs will not have data inside the snowflake.
+
+-- -- If we have a file in s3 and if we want to READ the file without loading the data to snowflake then we can use the external table feature.
+
+-- -- Physical storage noto there here ie data not stored in Snowflake
+create or replace external table ext_emp
+location = @stg_s3_source_data/
+refresh_on_create=true   -- after creating external table immedietely show the data
+auto_refresh=true   -- when ever new ffile get added automatically refresh the table and show the data
+file_format=(type=csv);
+
+select * from ext_emp;  -- // outputs variant data type data 
+
+select value['c1'] as empid, value['c2'] as empname, value['c3'] as location from ext_emp;  -- called 'SCHEMA ON READ'
+
+-- want to see the file name
+
+select metadata$filename, t1.* from ext_emp t1;  -- every record with it file name.
+
+
+-- -- while creating itself we want to cast the data
+create or replace external table ext_emp
+(
+    empid varchar as cast(value['c1'] as varchar),
+    empname varchar(100) as cast(value['c2'] as varchar),
+    location varchar(100) as cast(value['c3'] as varchar)
+)
+location = @stg_s3_source_data/
+refresh_on_create=true   -- after creating external table immedietely show the data
+auto_refresh=true   -- when ever new ffile get added automatically refresh the table and show the data
+file_format=(type=csv);
+
+select * from ext_emp;

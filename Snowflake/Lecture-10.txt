@@ -1,0 +1,168 @@
+-- -- // Lecture - 10
+
+-- -- // Sql UDFs. User Defined Functions 
+
+-- -- // In Functions we Must return a values, whereas in procedures it is Optional.
+
+create or replace FUNCTION area_of_circle(radius float)
+returns float
+as
+$$
+    pi() * radius * radius
+
+$$
+;
+
+select area_of_circle(5);
+
+// Example..
+create or replace table purchases (
+    number_sold integer,
+    wholesale_price number(7,2),
+    retail_price number(7,2)
+);
+
+insert into purchases (number_sold, wholesale_price, retail_price) values 
+(3, 10.00, 20.00),
+(5, 100.00, 200.00)
+;
+
+select * from purchases;
+
+create function profit()
+returns numeric(11, 2)
+as
+$$
+    select sum((retail_price - wholesale_price) * number_sold) from purchases
+$$
+
+select profit();
+
+
+-- -- // UDTs User Defined Table Functions. here we return More no values ie returning the Table.
+
+create or replace FUNCTION t()
+returns table(msg varchar)
+as
+$$
+    select 'Hello'
+    union
+    select 'Snow'
+
+$$;
+
+select * from table(t());
+
+----------------------================Example2-------------------==============
+
+create or replace table orders (
+    product_id varchar,
+    quantity_sold numeric(11, 2)
+);
+
+insert into orders values
+('compostable bags', 2000),
+('re-usable bags', 1000);
+
+select * from orders;
+
+create or replace FUNCTION orders_for_product(prod_name varchar)
+returns table (product_id varchar, quantity_sold numeric(11, 2))
+as
+$$
+    select product_id, quantity_sold
+    from orders
+    where product_id = prod_name
+$$
+;
+
+select * from table(orders_for_product('re-usable bags'));
+
+
+-------------------------------------------------------------------------------------
+
+-- -- // Cache in Snowflake
+
+Sizes in Warehouse
+
+Sizes  Servers / Clusters
+4XL			128
+3XL			64
+2XL			32
+XL			16
+L			8
+M			4
+S			2
+XS			1
+
+These are the no. of servers inside the cluster for resp. warehouse sizes.
+No. of credits per hour = no. of servers per hour. 
+
+=>>> HOW TO CHOOSE SIZE OF THE SERVER
+Initially start from the middle ie, run it in Large size. 
+If that executes fast then run it in Medium size.
+
+
+Apply Binary search algo
+
+
+If we want to increase the performance of the single query then we'll go for Scaling Up.
+
+For increasing up the performance of single query we will increase the size of the warehouse so that it runs faster. This is called SCALING UP.
+
+1 cluster can hold only one query.
+
+
+So what is scale out if you have concurrent queries execution? OK concurrent concurrency. So this is concurrency. This is a performance length in simple terms. OK, if you have a concurrence, a concurrent queries to be executed at once, then even though if you are increasing the you know.
+Warehouse size, right, even though. So let's assume ohh the same example. You have 10 clusters. OK 10 cluster. Sorry 10 queries which are parallelly run OK even though if you increase the warehouse size from small to medium still your cluster is same.
+Right, you have only one cluster here.
+No.
+So but one cluster can handle only one query only. So even though if you increase the warehouse size too large or X large or whatever it is, your cluster is still one so which cannot handle multiple queries. Only after the execution of first query only it will execute the second query. So it's of no use. So in at search time we will increase the cluster sizes basically.
+These are the clusters. OK, we will increase the cluster size from one to two so that you know one cluster will handle few queries. Second cluster will handle few queries and you will get the results faster. So why why you are, I mean why it is getting faster? Because number of servers inside the cluster internally are increasing OK.
+
+
+Increasing the no. of clusters (which internally increases servers) is called as SCALING OUT. 
+Reason for doing it is :
+	If we have concurrent queries running parallelly at the same time then it will take out db to execute. In such cases even if we Scale Up (increase the virtual warehouse size) will not work snowflake follows a tule "A single query must be handled by a single query only and not multiple.
+	
+	
+Scaling_policy: 
+
+	1: Standard: if we are running 10 queries at once then immeditely spins to 10 clusters, Results are Faster.
+	2: Economy: It will wait for a minute or two (max wait is 5-6 mins.). It will not spin up immeditely. Thinks about cost.
+	
+	If we are bothered about time we'll go for standard, if not and budget then Economy.
+	
+-- Caching
+
+// Fastest cache : 24hours Latest used same query time.
+
+1. Result Cache: In the initial run of the query the result is fetched from the Remote Disk and this data is cached now inside the result cache. But second time or immedietly after without changing any conditions,
+	if we run the query the result will be fetched from result query.  
+
+conditions to get data from result cache:
+i. Run the same query with same (or no) filter conditions.
+ii. Underlying data should also be the same. (running after inserting a row into the table)
+
+the data will be for 24 hours in the result cache. it will be deleted.
+
+
+Data persists until the Warehouse got suspended.
+2. Local Disk Cache: 
+We'll have the results only till the warehouse got Suspended.
+
+So initially it will get it from this second time all 50 thousand rows will be picked from result catche so that it will be very faster. 
+But let's say tomorrow I'm running the same query after 24 hours OK then you will not have data in the result catch. 
+But still your data will be persisting in the local disk catche.
+When a if A provided a condition that if you are not suspending the warehouse still tomorrow.
+OK.
+
+3. Remote Disk cache: Main storage of the data.
+
+
+manually resticting not to take result from RESULT cache
+ALTER session set USE_CACHED_RESULT = FALSE;
+
+
+-- -- // suspending a warehouse
+ALTER WAREHOUSE warehouse_name SUSPEND; -- suspending a warehouse will clear all the results data from the local disk cache.

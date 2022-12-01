@@ -1,0 +1,6 @@
+1,CSE
+2,ECE
+3,EEE
+4,CIVIL
+5,MECH
+6,AI

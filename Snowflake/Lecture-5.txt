@@ -1,0 +1,57 @@
+
+-- create or replace pipe pipe_LANDING_emp
+-- auto_ingest = true  -- means whenever i have a file in s3 it will automatically copy into snowflake
+-- as
+-- copy into emp
+-- from @stg_S3_Source_data/Emp/;
+
+show pipes;
+
+delete from emp;
+
+select * from emp;
+
+-- create table dept(deptno integer, deptname varchar(100))
+
+-- create or replace pipe pipe_LANDING_dept
+-- auto_ingest = false -- no notification channel
+-- as 
+-- copy into dept
+-- from @stg_S3_Source_data/Dept/;
+
+-- delete from dept;
+
+-- show pipes
+
+-- alter pipe LANDING.PIPE_LANDING_DEPT refresh; -- only the last one week/7days files will be refreshed as pipe hold the last 7days files.
+
+
+select * from dept;
+
+
+-- create or replace pipe pipe_LANDING_emp
+-- auto_ingest = true  -- means whenever i have a file in s3 it will automatically copy into snowflake
+-- as
+-- copy into emp
+-- from @stg_S3_Source_data/Emp/;
+
+select * from 
+table(information_schema.copy_history(table_name=>'EMP', start_time=>dateadd(hours, -6, current_timestamp())))
+
+select * from emp;
+
+-- Debugging if data is not showing up
+-- 1) first check if the pipe is running
+select system$pipe_status('pipe_LANDING_emp');
+
+-- 2) then check what is the error
+select * from 
+table(information_schema.copy_history(table_name=>'EMP', start_time=> dateadd(hours, -6, current_timestamp())))
+
+--  Pausing the pipe
+alter pipe pipe_LANDING_emp SET PIPE_EXECUTION_PAUSED = TRUE;
+alter pipe pipe_LANDING_emp SET PIPE_EXECUTION_PAUSED = FALSE;
+
+-- alter pipe LANDING.pipe_landing_dept refresh prefix='dept_january2021';
+-- alter pipe mypipe refresh prefix='2000/' modified_after='2021-01-31 13:56:46';
+

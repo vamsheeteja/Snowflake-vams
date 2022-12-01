@@ -1,0 +1,62 @@
+-- // Lecture 8
+
+Tasks: scheduling the sync up or automating the process of updating the target table whenever the source gets updated.
+
+CREATE TASK my_task
+    WAREHOUSE = DATA_INGESTION
+    SCHEDULE = '1 minute'
+WHEN
+    SYSTEM$STREAM_HAS_DATA('S_EMP1')
+AS
+merge into emp_hist1 t1
+using (select * from s_emp1) t2
+on t1.empid=t2.empid
+when matched and t2.METADATA$ACTION='DELETE'
+then update set t1.end_date=getdate()
+when not matched then 
+insert (empid, empname, location, start_date, end_date) values(t2.empid, t2.empname, t2.location, getdate(), null);
+
+
+SHOW TASKS;
+
+-- // Initially after creating the task it will be in suspended state. It will not immedietely run until or unless you resume.
+
+alter task my_task resume; -- // from now on it will check the stream for every 1 minute.
+
+
+-- // seeing the stream
+
+select * from s_emp1;
+select * from emp1;
+-- // updating the source table 
+
+insert into emp1 values(106, 'basha', 'chn');
+insert into emp1 values(109, 'munna', 'mbi');
+
+select * from s_emp1;
+select * from emp1;
+
+select * from emp_hist1;
+
+-- // if want to see the actions go to task_history metadata 
+
+select * from table(information_schema.task_history())
+
+
+-- // to suspend the task
+
+alter task my_task suspend;
+
+
+Final Points 
+
+If data is not loading into Target table
+
+then first
+
+1) check if Task is suspended or running from Task history table.
+2) then see pipe
+3) copyhistory any error while loading the pipe
+
+
+external_Storage(aws) / external storeage / s3 -> snowpipe -> staging table -> stream (sync up of source and target table) -> tasks (automating the sync up) -> target table

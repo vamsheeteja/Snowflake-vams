@@ -1,0 +1,82 @@
+-- -- //Lecture-12 Data Sharing
+
+Assume PRODUCER ACCOUONT : produces the data.
+
+and 
+
+CONSUMER ACCOUNTS : gets the data from the producer account and he'll access accordingly.  
+
+The Storage cost will be given to producer and Compute cost will be given to consumer.
+
+
+
+create or replace share myshare
+comment='To share data to other accounts'
+
+show shares;
+
+grant usage on database TEST to share myshare;
+grant usage on schema Test.LANDING to share myshare;
+grant select on all tables in schema Test.LANDING to share myshare;
+
+
+alter share myshare set accounts= -- <new account number>;
+
+show grant to SHARE myshare;
+
+
+-- -- ==================Consumer Account---------------------
+
+show shares;
+
+-- -- to view data we first have to create a database 
+
+create or replace data test_share from share -- <(CONSUMER_ACCOUNT_NAME).myshare>
+-- NOTE: get CONSUMER_ACCOUNT_NAME from 'show shares;' command in consumer account
+==============================================================================================================================
+
+create or replace database database1;
+create or replace schema database1.sch;
+create or replace table database1.sch.table1 (id int);
+
+create or replace database database2;
+create or replace schema database2.sch;
+create or replace SECURE view database2.sch.v1 as select * from database1.sch.table1;
+
+-- -- no these two databases are interlinked and if you give a share GRANT on database2 only then the user will not be able to see the data as database2 is referring database1.
+
+create share myshare1
+comment = "To share data to other accounts"
+
+show shares;
+
+-- -- granting permis
+
+grant usage on database database2 to share myshare1
+grant usage on schema database2.sch to share myshare1
+grant reference_usage on database database1 to share myshare1
+grant select on view database2.sch.v1 to share myshare1  -- view can only be shared iff it is a Secure way.
+
+=====================================================================================================================
+
+
+Masking Policy
+
+This something like if you want to hide any sensitive information inside your table right then you can create the masking policy based.
+
+Example 
+
+create or replace masking policy location_mask as (val string) returns string ->
+case
+    when current_role() in ('ACCOUNTADMIN') then val
+    else '**********'
+end;
+
+-- set
+alter table emp_table modify column location set masking policy location_mask;
+
+create temporary table emp_table as select * from emp;
+
+select * from emp_table;
+
+grant usage on warehouse data_ingestion to role useradmin;
