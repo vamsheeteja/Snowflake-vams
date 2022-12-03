@@ -1,11 +1,2 @@
 IAM user1
 sf_demo_user
-access key: AKIAQKK7J6DGFVEEDCA2
-access secret key: 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
-
-user2
-AKIAQKK7J6DGCOD2R34N  SevKn5fprKoznFGbJj+YOKttg35VesgvJfEd2rZs
-
-
-STORAGE_AWS_IAM_USER_ARN: arn:aws:iam::803664716056:user/33v20000-s
-STORAGE_AWS_EXTERNAL_ID: JK02585_SFCRole=2_2oRvaZB76+tVIu9oGIQ5Z+XjVQ4=
